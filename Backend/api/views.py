@@ -1,99 +1,54 @@
-from django.shortcuts import render
-
-# Create your views here.
-from rest_framework import viewsets, mixins, permissions, status
-from rest_framework.decorators import action
+from rest_framework import viewsets, permissions
+from .models import InventoryItem, InventoryList, ShoppingList
+from .serializers import  InventoryItemSerializer, InventoryListSerializer, ShoppingListSerializer
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import *
-from .serializers import *
-# from .services.planners import PlannerService
-# from .services.llm import LLMService
-# from .services.matchers import MatcherService
+from rest_framework import status
 
-class IsOwner(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        return getattr(obj, "user_id", None) == request.user.id
-
-class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all().order_by("name")
-    serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-class MealViewSet(viewsets.ModelViewSet):
-    serializer_class = MealSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return Meal.objects.filter(user=self.request.user).order_by("-updated_at")
-
+# --- Inventory Item CRUD ---
 class InventoryItemViewSet(viewsets.ModelViewSet):
+    queryset = InventoryItem.objects.all()
     serializer_class = InventoryItemSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwner]
+    permission_classes = [permissions.AllowAny]
 
-    def get_queryset(self):
-        return InventoryItem.objects.filter(user=self.request.user).select_related("product")
 
+# --- Inventory List CRUD ---
+class InventoryListViewSet(viewsets.ModelViewSet):
+    queryset = InventoryList.objects.all()
+    serializer_class = InventoryListSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+# --- Shopping List CRUD ---
 class ShoppingListViewSet(viewsets.ModelViewSet):
+    queryset = ShoppingList.objects.all()
     serializer_class = ShoppingListSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwner]
+    permission_classes = [permissions.AllowAny]
 
-    def get_queryset(self):
-        return ShoppingList.objects.filter(user=self.request.user).prefetch_related("items__product")
 
-    @action(detail=True, methods=["post"], url_path="generate-from-mealplan")
-    def generate_from_mealplan(self, request, pk=None):
-        mp_id = request.data.get("meal_plan_id")
-        if not mp_id:
-            return Response({"detail": "meal_plan_id required"}, status=400)
-        try:
-            mp = MealPlan.objects.get(id=mp_id, user=request.user)
-        except MealPlan.DoesNotExist:
-            return Response({"detail": "not found"}, status=404)
-        sl = PlannerService.generate_monthly_list(request.user, mp)
-        return Response(ShoppingListSerializer(sl).data)
 
-class InventoryAuditViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin, mixins.RetrieveModelMixin):
-    queryset = InventoryAudit.objects.all()
-    permission_classes = [permissions.IsAuthenticated, IsOwner]
-    serializer_class = serializers.ModelSerializer  # simple placeholder
+# class CreatePlanView(APIView):
+#     def post(self, request, *args, **kwargs):
+#         serializer = CreatePlanSerializer(data=request.data)
+#         if not serializer.is_valid():
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def create(self, request, *args, **kwargs):
-        image = request.FILES.get("image")
-        matched_list_id = request.data.get("matched_list_id")
-        if not image or not matched_list_id:
-            return Response({"detail": "image and matched_list_id required"}, status=400)
-        sl = ShoppingList.objects.get(id=matched_list_id, user=request.user)
-        audit = InventoryAudit.objects.create(user=request.user, image=image, matched_list=sl)
+#         text_input = serializer.validated_data.get('text')
+#         image_file = serializer.validated_data.get('image')
 
-        # Run VLM (sync for hackathon simplicity)
-        llm = LLMService()
-        candidate = [
-            {"product_id": item.product_id, "name": item.product.name, "unit": item.unit}
-            for item in sl.items.select_related("product")
-        ]
-        result = llm.analyze_inventory_image(audit.image.path, candidate)
-        audit.result_json = result
-        audit.summary = f"Analyzed against list {sl.id}"
-        audit.save()
+#         # Print or log the data
+#         print("Received Text:", text_input)
 
-        MatcherService.apply_audit_to_list(sl, result)
-        return Response({"audit_id": audit.id, "result": result})
+#         if image_file:
+#             print("Received Image Name:", image_file.name)
+#             print("Content Type:", image_file.content_type)
+#             print("Image Size:", image_file.size, "bytes")
+#         else:
+#             print("No image provided.")
 
-class DinnerPlanViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin, mixins.RetrieveModelMixin):
-    permission_classes = [permissions.IsAuthenticated]
-
-    @action(detail=False, methods=["post"], url_path="from-inventory")
-    def from_inventory(self, request):
-        image = request.FILES.get("image")
-        inv = InventoryItem.objects.filter(user=request.user).select_related("product")
-        inv_payload = [
-            {"product_id": x.product_id, "name": x.product.name, "qty": float(x.quantity), "unit": x.unit}
-            for x in inv
-        ]
-        llm = LLMService()
-        result = llm.dinner_from_inventory(inv_payload)
-        dp = DinnerPlan.objects.create(user=request.user, image=image if image else None,
-                                       llm_request_json={"inventory": inv_payload},
-                                       llm_response_json=result,
-                                       summary=result.get("summary", ""))
-        return Response({"dinner_plan_id": dp.id, **result})
+#         # Optionally, return a confirmation response
+#         return Response({
+#             "message": "Data received successfully",
+#             "text": text_input,
+#             "image": image_file.name if image_file else None
+#         }, status=status.HTTP_200_OK)

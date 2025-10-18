@@ -16,21 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from api.views import ProductViewSet, MealViewSet, InventoryItemViewSet, ShoppingListViewSet, InventoryAuditViewSet, DinnerPlanViewSet
-
-
-router = DefaultRouter()
-router.register(r"products", ProductViewSet, basename="product")
-router.register(r"meals", MealViewSet, basename="meal")
-router.register(r"inventory", InventoryItemViewSet, basename="inventory")
-router.register(r"shopping-lists", ShoppingListViewSet, basename="shoppinglist")
-router.register(r"audits", InventoryAuditViewSet, basename="audit")
-router.register(r"dinner", DinnerPlanViewSet, basename="dinner")
 
 
 urlpatterns = [
 path("admin/", admin.site.urls),
-path("api/", include(router.urls)),
+path("api/", include('api.urls')),
 path("api-auth/", include("rest_framework.urls")), 
-]
+]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

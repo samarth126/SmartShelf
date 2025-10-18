@@ -21,3 +21,4 @@ class ShoppingItemStatus(models.TextChoices):
     LOW = "low", "Low"
     OK = "ok", "OK"
     PURCHASED = "purchased", "Purchased"
+    

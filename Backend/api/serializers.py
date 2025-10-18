@@ -1,73 +1,33 @@
-
 from rest_framework import serializers
-from .models import *
+from .models import InventoryItem, InventoryList, ShoppingList
 
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = "__all__"
 
-class MealIngredientSerializer(serializers.ModelSerializer):
-    product_detail = ProductSerializer(source="product", read_only=True)
-
-    class Meta:
-        model = MealIngredient
-        fields = ["id", "product", "product_detail", "quantity", "unit", "optional"]
-
-class MealSerializer(serializers.ModelSerializer):
-    ingredients = MealIngredientSerializer(many=True)
-
-    class Meta:
-        model = Meal
-        fields = ["id", "name", "description", "tags", "ingredients", "created_at", "updated_at"]
-
-    def create(self, validated_data):
-        ings = validated_data.pop("ingredients", [])
-        meal = Meal.objects.create(user=self.context["request"].user, **validated_data)
-        for ing in ings:
-            MealIngredient.objects.create(meal=meal, **ing)
-        return meal
-
-    def update(self, instance, validated_data):
-        ings = validated_data.pop("ingredients", None)
-        for k, v in validated_data.items():
-            setattr(instance, k, v)
-        instance.save()
-        if ings is not None:
-            instance.ingredients.all().delete()
-            for ing in ings:
-                MealIngredient.objects.create(meal=instance, **ing)
-        return instance
-
+# --- Inventory Item Serializer ---
 class InventoryItemSerializer(serializers.ModelSerializer):
-    product_detail = ProductSerializer(source="product", read_only=True)
-
     class Meta:
         model = InventoryItem
-        fields = "__all__"
-        read_only_fields = ["user"]
+        fields = ['id', 'name', 'quantity', 'brand']
 
-    def create(self, validated_data):
-        validated_data["user"] = self.context["request"].user
-        return super().create(validated_data)
 
-class ShoppingListItemSerializer(serializers.ModelSerializer):
-    product_detail = ProductSerializer(source="product", read_only=True)
+# --- Inventory List Serializer ---
+class InventoryListSerializer(serializers.ModelSerializer):
+    inventory_items = InventoryItemSerializer(many=True, read_only=True)
+    item_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=InventoryItem.objects.all(), write_only=True, source='inventory_items'
+    )
 
     class Meta:
-        model = ShoppingListItem
-        fields = "__all__"
+        model = InventoryList
+        fields = ['id', 'name', 'purpose', 'inventory_items', 'item_ids', 'created_at']
 
+
+# --- Shopping List Serializer ---
 class ShoppingListSerializer(serializers.ModelSerializer):
-    items = ShoppingListItemSerializer(many=True)
-
     class Meta:
         model = ShoppingList
-        fields = ["id", "title", "type", "status", "period_month", "generated_from", "items", "created_at", "updated_at"]
+        fields = ['id', 'item_name', 'brand', 'quantity_needed', 'created_at']
 
-    def create(self, validated_data):
-        items = validated_data.pop("items", [])
-        sl = ShoppingList.objects.create(user=self.context["request"].user, **validated_data)
-        for it in items:
-            ShoppingListItem.objects.create(shopping_list=sl, **it)
-        return sl
+
+# class CreatePlanSerializer(serializers.Serializer):
+#     text = serializers.CharField()
+#     image = serializers.ImageField(required=False)
