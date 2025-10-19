@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import InventoryItem, InventoryList, ShoppingList
 
 
+
 # --- Inventory Item Serializer ---
 class InventoryItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -28,6 +29,10 @@ class ShoppingListSerializer(serializers.ModelSerializer):
         fields = ['id', 'item_name', 'brand', 'quantity_needed', 'created_at']
 
 
-# class CreatePlanSerializer(serializers.Serializer):
-#     text = serializers.CharField()
-#     image = serializers.ImageField(required=False)
+class CreatePlanSerializer(serializers.Serializer):
+    text = serializers.CharField()
+    image = serializers.ImageField(required=False)
+
+class StockListMatchingSerializer(serializers.Serializer):
+    image = serializers.ImageField(required=False)
+    list_id = serializers.IntegerField(required=False)

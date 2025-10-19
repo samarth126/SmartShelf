@@ -3,7 +3,7 @@ from django.db import models
 # Table 1: Inventory Items
 class InventoryItem(models.Model):
     name = models.CharField(max_length=100, default="Untitled Item")
-    quantity = models.FloatField(default=0)
+    quantity = models.CharField(max_length=100, blank=True, null=True)
     brand = models.CharField(max_length=100, blank=True, null=True)
 
     def __str__(self):
