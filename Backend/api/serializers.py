@@ -36,3 +36,7 @@ class CreatePlanSerializer(serializers.Serializer):
 class StockListMatchingSerializer(serializers.Serializer):
     image = serializers.ImageField(required=False)
     list_id = serializers.IntegerField(required=False)
+
+class PartyPlanningSerializer(serializers.Serializer):
+    list_id = serializers.IntegerField(required=True)
+    party_prompt = serializers.CharField(required=True, max_length=500)

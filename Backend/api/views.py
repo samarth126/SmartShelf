@@ -7,11 +7,14 @@ from .serializers import (
     InventoryListSerializer,
     ShoppingListSerializer,
     CreatePlanSerializer,
-    StockListMatchingSerializer
+    StockListMatchingSerializer,
+    PartyPlanningSerializer
 )
 from .Services.planning_list_gen import send_to_gemini
 
 from .Services.stock_matching_service import match_stock_with_list
+
+from .Services.feastbeast import plan_party_with_inventory
 
 # --- Inventory Item CRUD ---
 class InventoryItemViewSet(viewsets.ModelViewSet):
@@ -210,4 +213,55 @@ class StockMatchingView(APIView):
             "restock_list": restock_list,
             "cheapest_info": cheapest_info,
             "total_missing_items": len(restock_list)
+        }, status=status.HTTP_200_OK)
+
+class PartyPlanningView(APIView):
+    """
+    POST /api/plan-party/
+    Plans a party based on inventory and party details, and suggests additional items needed.
+    
+    Required fields:
+        - list_id: ID of the inventory list
+        - party_prompt: Description of dishes and number of guests
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = PartyPlanningSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        list_id = serializer.validated_data.get("list_id")
+        party_prompt = serializer.validated_data.get("party_prompt")
+
+        # Fetch inventory list
+        try:
+            inventory_list = InventoryList.objects.get(id=list_id)
+        except InventoryList.DoesNotExist:
+            return Response({"error": "Inventory list not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get items in the inventory list
+        items = inventory_list.inventory_items.all()
+        if not items.exists():
+            return Response({"error": "Selected inventory list has no items"}, status=status.HTTP_400_BAD_REQUEST)
+
+        items_data = InventoryItemSerializer(items, many=True).data
+
+        # Call party planning service
+        gemini_response = plan_party_with_inventory(
+            list_id=list_id,
+            party_prompt=party_prompt,
+            inventory_list_items=items_data
+        )
+
+        if "error" in gemini_response:
+            return Response(gemini_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            "message": "Party planning completed successfully",
+            "list_id": list_id,
+            "list_name": inventory_list.name,
+            "party_shopping_list": gemini_response.get("party_shopping_list", []),
+            "cheapest_info": gemini_response.get("cheapest_info", {}),
+            "total_missing_items": len(gemini_response.get("party_shopping_list", []))
         }, status=status.HTTP_200_OK)
